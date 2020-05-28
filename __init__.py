@@ -17,6 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from lxml import etree
+import networkx as nx
+
 
 class Dumper(object):
     """Dump an lxml.etree tree starting at `element`.
@@ -188,9 +190,9 @@ def iter_unique_child_tags(bases, tags):
     """
     # both elements and strings are iterable types,
     #   so we need to check for those specific types.
-    bases, tags = (iter((param,)) if isinstance(param, type) else iter(param)
+    bases, tags = (iter((param,)) if isinstance(param, type) or callable(param) else iter(param)
                    for (param, type) in ((bases, etree._Element),
-                                         (tags, basestring)))
+                                         (tags, str)))
 
     from itertools import product
     basetags = product(bases, tags)
@@ -231,12 +233,10 @@ def build_tag_graph(bases):
     
     `bases` is an element or iterable of elements.
     """
-    from pygraph.classes.digraph import digraph
-
-    g = digraph()
+    g = nx.digraph.DiGraph()
 
     tags = list(iter_tag_list(bases))
-    g.add_nodes(tags)
+    g.add_nodes_from(tags)
 
     # TODO: this is totally inefficient:
     #         it makes more sense to do each base separately,
@@ -244,7 +244,7 @@ def build_tag_graph(bases):
     #       The better way is to build the set of all bases' edges.
     for tag in tags:
         for child in iter_unique_child_tags(bases, tag):
-            g.add_edge((tag, child))
+            g.add_edge(tag, child)
 
     return g
 
@@ -253,12 +253,11 @@ def write_graph(graph, filename, format='svg'):
 
     `format` can be any of those supported by pydot.Dot.write().
     """
-    from pygraph.readwrite.dot import write
-    dotdata = write(graph)
-
-    from pydot import graph_from_dot_data
-    dotgraph = graph_from_dot_data(dotdata)
-    dotgraph.write(filename, format=format)
+    ### here is a dirty fix : it does not output graphic formats
+    ### like svg, but only .dot files
+    pos = nx.nx_agraph.graphviz_layout(graph)
+    nx.draw(graph, pos=pos)
+    nx.drawing.nx_pydot.write_dot(graph, filename)
 
 def write_tag_graph(bases, filename, format='png'):
     """Build and write a graph of the tag relationships in `bases`.
